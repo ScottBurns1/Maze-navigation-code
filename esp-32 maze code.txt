@@ -1,0 +1,424 @@
+/* @file CustomKeypad.pde
+|| @version 1.0
+|| @author Alexander Brevig
+|| @contact alexanderbrevig@gmail.com
+||
+|| @description
+|| | Demonstrates changing the keypad size and key values.
+|| #
+*/
+#include "mpu6500.h"
+#include <LiquidCrystal.h>
+#include <Wire.h> // include Wire library
+#include <Keypad.h>
+
+bfs::Mpu6500 imu;
+
+ LiquidCrystal lcd(19, 23, 27, 33 , 14, 15); // MAY HAVE TO CHANGE THESE PINS
+int navArray[50][2];
+int direction,magnitude,count,x,y,needangle,b;
+int vtemp=1;
+const byte ROWS = 4; //four rows
+const byte COLS = 3; //four columns
+float GZ,GZ2,gz,angle;
+int angle2;
+//define the cymbols on the buttons of the keypads
+char hexaKeys[ROWS][COLS] = {
+  {'-','F','+'},
+  {'L','E','R'},
+  {'D','B','A'},
+  {'S','T','M'}
+};
+byte rowPins[ROWS] = {2,0,4,16}; //connect to the row pinouts of the keypad
+byte colPins[COLS] = {17,5,18}; //connect to the column pinouts of the keypad
+
+//initialize an instance of class NewKeypad
+Keypad customKeypad = Keypad(makeKeymap(hexaKeys), rowPins, colPins, ROWS, COLS); 
+
+char customKey = customKeypad.getKey();
+
+void setup(){
+  
+ Wire.begin();
+  y = -1;
+ Serial.begin(9600);
+lcd.begin(16, 2);
+ // Print bootup message to the LCD.
+  lcd.setCursor(0, 0);
+  lcd.print("    BENCH 10    ");
+  lcd.setCursor(0, 1);
+  lcd.print("    ROLL OUT    ");
+  delay(3000);
+  lcd.clear();
+  needangle = 0;
+Wire.setClock(400000);
+  /* I2C bus,  0x68 address */
+  imu.Config(&Wire, bfs::Mpu6500::I2C_ADDR_PRIM);
+  /* Initialize and configure IMU */
+  if (!imu.Begin()) {
+    Serial.println("Error initializing communication with IMU");
+    while(1) {}
+  }
+  /* Set the sample rate divider */
+  if (!imu.ConfigSrd(19)) {
+    Serial.println("Error configured SRD");
+    while(1) {}
+  }
+   if (imu.Read()) {
+    
+    gz = 0 - imu.gyro_z_radps();
+  
+  }
+
+while(1)
+{
+   customKey = NULL;
+   while(!customKey)
+    {
+    customKey = customKeypad.getKey();
+    // INITIAL INSTRUCTION TO USER
+  lcd.setCursor(0, 0);
+  lcd.print("SELECT ACTION");
+    delay(100);
+    }
+    
+if(customKey)
+{
+  if(customKey == 'M')
+  {
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("Please add a step");
+    lcd.setCursor(0,1);
+  lcd.print("FWD, BCK, L or R");
+      y++;
+      Serial.println(y);
+
+      navArray[y][0] = FindDirection();
+
+      if(navArray[y][0] == 12 || navArray[y][0] == 13)
+      {
+        Serial.println("we r here");
+      navArray[y][1] = FindMagnitude();
+      }
+      
+  }  
+
+  else if(customKey == 'S'&& y>0) 
+  {
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("REMOVING STEP!!");
+    delay(1000);
+    
+      navArray[y][0] = 0;
+      navArray[y][1] = 0;
+      y--;
+  }
+
+  else if(customKey == 'T') 
+  {
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("RESETTING AHHHH");
+    delay(1000);
+  for(y=0;y<=49;y++)
+  {
+    navArray[y][0] = 0;
+    navArray[y][1] = 0;
+  }
+  y = -1;
+  }
+
+  else if(customKey == 'D')
+  {
+    displayArray();
+  }
+
+   else if(customKey == 'A')
+  {
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("EXECUTING STEPS ");
+    delay(1000);
+    sendData();
+    needangle=0;
+    angle = 0;
+    while(needangle!=2)
+    {
+    askcompleted();    
+    if(needangle == 1)
+    {
+      
+      findangle();
+      sendangle();
+      for(b=0;b<=5;b++)
+      {
+        findangle();
+      }
+    }
+
+    else
+    {
+       angle = 0;
+    }
+    }
+      
+
+  }
+
+  else
+  {
+    Serial.println("invalid input");
+  }
+ 
+ delay(100);
+ 
+}
+
+}
+
+}
+
+int FindDirection()
+{
+  Serial.println("give direction");
+  customKey = NULL;
+  while(1)
+  {
+    customKey = NULL;    
+    while(!customKey)
+    {
+    customKey = customKeypad.getKey();
+delay(100);
+    }
+
+    if(customKey)
+    {
+      if(customKey=='F')
+      {
+        // PUT THIS IN FORWARD LOOP
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("GO FORWARD");
+        Serial.println("forward");
+        return(12);
+        
+      }   
+
+      else if(customKey=='B')
+      {
+// PUT THIS FOR BACKWARD LOOP
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("GO BACKWARDS");     
+         Serial.println("backwards");
+        return(13);
+       
+      }    
+
+      else if(customKey=='L')
+      {
+        // PUT THIS IN GO RIGHT LOOP
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("GO LEFT");
+        Serial.println("left");
+        return(14);
+        
+      } 
+
+      else if(customKey=='R')
+      {
+        // PUT THIS IN GO RIGHT LOOP
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("GO RIGHT");
+        Serial.println("right");
+        return(15);
+        
+      } 
+      
+      else
+      {
+        Serial.println("invalid input");
+      }
+delay(100);
+    }
+    
+    
+ }
+}
+
+int FindMagnitude()
+{
+  magnitude = 0;
+  
+  while(1)
+  {
+    customKey = NULL;
+    while(!customKey)
+    {
+    customKey = customKeypad.getKey();
+   delay(100);
+    }
+
+  if(customKey)
+  {
+  
+    if(customKey == '+')
+    {
+      if(magnitude >=10)
+      {
+        magnitude = 10;
+        Serial.println("value is too high!!");
+         lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("TOO BIG :) ");
+      }
+      
+      else
+      {
+        magnitude++;
+        Serial.println(magnitude);
+              lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("MAG IS:");
+    lcd.setCursor(0, 1);
+    lcd.print(magnitude);
+      }
+      
+    }
+
+      else if(customKey == '-')
+    {
+      if(magnitude <=0)
+      {
+        magnitude = 0;
+        Serial.println("value is too low!!");
+              lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("TOO SMALL :( ");
+      }
+      
+      else
+      {
+        magnitude--;
+        Serial.println(magnitude);
+           lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("MAG IS:");
+    lcd.setCursor(0, 1);
+    lcd.print(magnitude);      
+      }
+      
+    }
+
+    else if(customKey == 'E')
+    {
+      return(magnitude);
+    }    
+
+  else 
+  {
+    Serial.println("invalid input");
+  }
+  }    
+delay(100);
+
+  }
+}
+
+void displayArray()
+{
+
+for(x=0;x<=y;x++)  
+{
+Serial.print(navArray[x][0]);
+Serial.print(navArray[x][1]);
+Serial.println("");
+}
+return;
+
+}
+
+void sendData() 
+{
+  Wire.beginTransmission(0x08);  // transmit to device #8
+  Wire.write(0);     
+ delay(100);
+
+for(x=0;x<=y;x++)
+{
+  
+  Wire.write(navArray[x][0]);          //sends speed value to arduino
+  Wire.write(navArray[x][1]);          //sends speed value to arduino
+  Serial.println(navArray[x][0]);
+  delay(100);
+
+}   
+
+  Wire.write(16);          //sends speed value to arduino
+  Wire.write(16);          //sends speed value to arduino
+delay(100);
+  Wire.endTransmission();        // stop transmitting  #
+   
+delay(1);
+
+}
+
+void loop()
+{
+  Serial.println("ahhh");
+}
+
+
+void askcompleted()
+{
+  Wire.requestFrom(0x08, 1);    // request 6 bytes from slave device #8
+
+  while (Wire.available()) 
+  {
+   needangle = Wire.read();
+   Serial.println(needangle);
+  }
+
+delay(1);
+}
+
+void findangle()
+{
+int t;
+  /* Check if data read */
+  if (imu.Read()) {
+    for (t=1;t<=10; t++)
+    {
+    GZ = imu.gyro_z_radps()+gz;
+    }
+    GZ = GZ/10;
+}
+
+delay (10);
+
+  if (imu.Read()) {
+    for (t=1;t<=10; t++)
+    {
+    GZ2 = imu.gyro_z_radps()+gz;
+    }
+    GZ2 = GZ2/10;
+}
+
+angle = angle + 0.25*(GZ2+GZ)*0.01*1500;
+angle2 = angle;
+Serial.println(angle);
+}
+
+void sendangle()
+{
+  Wire.beginTransmission(0x08);  // transmit to device #8
+  Wire.write(1);  
+  Wire.write(angle2+100);    
+  Wire.endTransmission();        // stop transmitting  #
+ delay(1);
+  Serial.println(x);
+}

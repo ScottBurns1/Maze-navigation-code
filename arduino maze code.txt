@@ -1,0 +1,291 @@
+#include <Wire.h> // include Wire library
+#include <Servo.h>    //include the servo library
+#include <Encoder.h>
+#define servoPin 4
+Servo myservo;        // create servo object to control a servo
+float currentSteer;  // variable to store the servo position
+void moveSteering();
+int getgyro();
+
+Encoder myEnc(3, 12); //enable pins with interrupt capability
+long oldPosition  = -999;
+float distance;
+
+int motorcontrol,servo,servo2,y,x,done,action,cheese,z;
+int navArray[50][2];
+
+
+
+#define enA 5   //EnableA command line - should be a PWM pin
+#define enB 6   //EnableB command line - should be a PWM pin
+
+
+
+//name the motor control pins - replace the CHANGEME with your pin number, digital pins do not need the 'D' prefix whereas analogue pins need the 'A' prefix
+#define INa A0  //Channel A direction 
+#define INb A1  //Channel A direction 
+#define INc A2  //Channel B direction 
+#define INd A3  //Channel B direction 
+
+
+void setup() 
+{
+  Serial.begin(9600); // start serial to visualise data
+Wire.onReceive(recieveevent); 
+Wire.onRequest(requestevent);
+  analogWrite(enA, 220);
+  analogWrite(enB, 220);
+  // put your setup code here, to run once:
+  Wire.begin(0x08); // join i2c bus with address 8
+
+
+  myservo.attach(servoPin);  //attach our servo object to pin D4
+  //the Servo library takes care of defining the PinMode declaration (libraries/Servo/src/avr/Servo.cpp line 240)
+
+  //configure the motor control pins as outputs
+  pinMode(INa, OUTPUT);
+  pinMode(INb, OUTPUT);
+  pinMode(INc, OUTPUT);
+  pinMode(INd, OUTPUT);
+  pinMode(enA, OUTPUT);
+  pinMode(enB, OUTPUT);   
+
+  //initialise serial communication
+
+  
+
+
+   motors(); //make a call to the "motors" function and provide it with a value for each of the 2 motors - can be different for each motor - using same value here for expedience
+  
+y=0;
+}
+
+
+void loop() 
+{
+  
+if(y==1)
+{
+  done = 0;
+  
+//Serial.println(y);  
+for(z=0;z<=20;z++)
+{
+ 
+  if(navArray[z][0]==12)
+  {
+    goForwards();
+  }  
+
+  else if(navArray[z][0]==13)
+  {
+    goBackwards();
+  } 
+
+  else if(navArray[z][0]==14)
+  {
+    done = 1;
+    goLeft();
+    
+  } 
+
+  else if(navArray[z][0]==15)
+  {
+    done = 1;  
+    goRight();
+    
+  } 
+  else if(navArray[z][0]==16)
+  {
+    stopMotors();
+    y=0;
+    //Serial.println(y);
+    x=0;
+    done = 2;
+    return;
+  }
+
+}
+}
+}
+
+
+
+
+
+void motors() {
+//   //set individual motor speed
+//   //direction is set separately
+
+  analogWrite(enA, 220);
+  analogWrite(enB, 220);
+
+}
+
+ void moveSteering() 
+ {
+
+
+   //you may need to change the maximum and minimum servo angle to have the largest steering motion
+    myservo.write(servo);   //tell servo to go to position in variable 'steeringAngle'
+    //Serial.println("testing at steering");
+
+}
+
+
+// //for each of the below function, two of the 'IN' variables must be HIGH, and two LOW in order to move the wheels - use a trial and error approach to determine the correct combination for your EEEBot
+void goForwards() 
+{
+  long newPosition;
+  myEnc.readAndReset();
+  distance = 0;
+  myservo.write(52);
+  
+   analogWrite(enA, 200);
+  analogWrite(enB,200);
+
+  digitalWrite(INa, HIGH);
+  digitalWrite(INb, LOW);
+  digitalWrite(INc, HIGH);
+  digitalWrite(INd, LOW);
+
+  while(distance<(10*navArray[z][1]))
+  {
+    newPosition = myEnc.read();
+    distance = newPosition*0.9396;  
+    Serial.println(distance);  
+  }
+
+}
+
+void goLeft() 
+{
+
+   while(1)
+{
+  //Serial.println(cheese); 
+  if(cheese<=10)
+  {
+    Serial.println("enough!!");
+    done = 0;   
+    return;
+  }
+
+  myservo.write(0);
+  analogWrite(enA, 100);
+  analogWrite(enB,150);
+
+  digitalWrite(INa, HIGH);
+  digitalWrite(INb, LOW);
+  digitalWrite(INc, HIGH);
+  digitalWrite(INd, LOW);
+}
+  
+
+}
+
+void goRight() 
+{
+  while(1)
+{
+  Serial.println(cheese); 
+  if(cheese>=190)
+  {
+    Serial.println("enough!!");
+    done = 0;   
+    return;
+  }
+  
+  myservo.write(110);
+  
+   analogWrite(enA, 150);
+  analogWrite(enB,100);
+
+  digitalWrite(INa, HIGH);
+  digitalWrite(INb, LOW);
+  digitalWrite(INc, HIGH);
+  digitalWrite(INd, LOW);
+
+ }
+
+}
+
+
+void goBackwards() {
+ myservo.write(52);
+ 
+   analogWrite(enA, 200);
+  analogWrite(enB, 200);
+
+  digitalWrite(INa, LOW);
+  digitalWrite(INb, HIGH);
+  digitalWrite(INc, LOW);
+  digitalWrite(INd, HIGH);
+
+  delay(2000);
+}
+
+void stopMotors() {
+
+  digitalWrite(INa, LOW);
+  digitalWrite(INb, LOW);
+  digitalWrite(INc, LOW);
+  digitalWrite(INd, LOW);
+
+  
+}
+
+void recieveevent()
+{
+  x=0;
+  int che=0;
+  cheese = 100;
+while (Wire.available()) {    // loop whilst master sends data
+  action = 0;
+  action = Wire.read();
+  delay(1);
+  Serial.println("at action lads");
+  Serial.println(action);
+ 
+  if(action == 0)
+  {
+     
+    while(1)
+    {    
+      
+    navArray[x][0] = Wire.read();       // receive servo value
+    navArray[x][1] = Wire.read();
+    Serial.println("talking about array"); 
+    Serial.println(x);
+    Serial.println(navArray[x][0]);
+    delay(1);
+   
+    if(navArray[x][0]==16)
+    {
+      y=1;  
+      Serial.println("y is now 1");
+      return;
+    }
+    x++;
+  
+  }
+  }
+
+
+  if(action == 1)
+  {
+    che = Wire.read();  
+    
+  }
+} 
+cheese = che;
+ 
+}
+
+
+void requestevent()
+{
+  Wire.write(done);
+}
+
+
